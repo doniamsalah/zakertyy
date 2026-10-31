@@ -1,0 +1,534 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#315c55">
+  <meta
+    name="description"
+    content="ذاكرتي: ألبوم عائلي شخصي وألعاب تفاعلية بسيطة للذكريات."
+  >
+  <title>ذاكرتي | Zakerty</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home" data-go="home" aria-label="العودة للرئيسية">
+      <span class="brand-icon" aria-hidden="true">ذ</span>
+      <span>
+        <strong>ذاكرتي</strong>
+        <small>Zakerty · ألبوم العيلة</small>
+      </span>
+    </a>
+
+    <span class="status" role="status" aria-live="polite">
+      بيانات محلية على الجهاز
+    </span>
+  </header>
+
+  <main class="container">
+    <section id="home" class="page hero">
+      <p class="eyebrow">ذكريات العيلة في مكان واحد</p>
+
+      <h1>كل وش مألوف، وكل حكاية ليها مكان ❤️</h1>
+
+      <p>
+        ألبوم عائلي شخصي، صوره ومعلوماته بيضيفها أفراد العيلة
+        بأنفسهم، مع ألعاب بسيطة وتسجيل لنتائج الجلسات.
+      </p>
+
+      <div class="stats-grid">
+        <article class="stat-card">
+          <span>أفراد العيلة</span>
+          <strong id="familyCount">0</strong>
+        </article>
+
+        <article class="stat-card">
+          <span>الجلسات المسجلة</span>
+          <strong id="homeSessionCount">0</strong>
+        </article>
+      </div>
+
+      <div class="actions">
+        <button class="primary" data-go="games">
+          ابدأ اللعب
+        </button>
+
+        <button class="secondary" data-go="family">
+          إدارة أفراد العيلة
+        </button>
+      </div>
+
+      <section class="upcoming-panel" aria-labelledby="upcomingTitle">
+        <h2 id="upcomingTitle">المناسبات العائلية القادمة 🎂</h2>
+        <div id="upcomingBirthdays" class="upcoming-list"></div>
+      </section>
+    </section>
+
+    <nav class="navigation" aria-label="القائمة الرئيسية">
+      <button data-go="home" class="active" aria-current="page">
+        الرئيسية
+      </button>
+
+      <button data-go="family">
+        أفراد العيلة
+      </button>
+
+      <button data-go="games">
+        الألعاب
+      </button>
+
+      <button data-go="research">
+        البحث والنتائج
+      </button>
+
+      <button data-go="settings">
+        الخصوصية
+      </button>
+    </nav>
+
+    <section id="family" class="page hidden" aria-labelledby="familyTitle">
+      <div class="section-heading">
+        <div>
+          <h2 id="familyTitle">أفراد العيلة 👨‍👩‍👧</h2>
+          <p>ضيفوا الصور الحقيقية والمعلومات الخاصة بكل شخص.</p>
+        </div>
+
+        <button id="addPersonBtn" class="primary">
+          + إضافة شخص
+        </button>
+      </div>
+
+      <div class="family-tools">
+        <div class="field">
+          <label for="familySearch">ابحث عن فرد</label>
+          <input
+            id="familySearch"
+            type="search"
+            placeholder="الاسم أو صلة القرابة"
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="field">
+          <label for="familySort">ترتيب حسب</label>
+          <select id="familySort">
+            <option value="name">الاسم</option>
+            <option value="relation">صلة القرابة</option>
+            <option value="age">العمر من الأكبر</option>
+            <option value="birthday">أقرب مناسبة</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="familyList" class="family-grid"></div>
+
+      <p id="familyEmpty" class="empty">
+        لسه مفيش أفراد مضافين. ابدأ بإضافة أول شخص.
+      </p>
+      <p id="familyNoResults" class="empty hidden">
+        مفيش أفراد مطابقين للبحث.
+      </p>
+    </section>
+
+    <section id="games" class="page hidden" aria-labelledby="gamesTitle">
+      <h2 id="gamesTitle">اختار لعبتك 🧠</h2>
+
+      <p class="muted">
+        مفيش ضغط ولا استعجال. اختار اللعبة اللي تحب تبدأ بيها.
+      </p>
+
+      <div class="panel difficulty-panel">
+        <div class="field">
+          <label for="gameDifficulty">مستوى صعوبة الأسئلة</label>
+          <select id="gameDifficulty">
+            <option value="easy">سهل — اختياران</option>
+            <option value="normal" selected>متوسط — 3 اختيارات</option>
+            <option value="hard">تحدي — حتى 4 اختيارات</option>
+          </select>
+        </div>
+        <label class="voice-toggle" for="autoReadQuestions">
+          <input id="autoReadQuestions" type="checkbox">
+          <span>اقرأ الأسئلة بصوت عربي تلقائيًا</span>
+        </label>
+        <small id="voiceSupport" class="help" role="status">
+          تقدر كمان تضغط «اسمع السؤال» وقت اللعب.
+        </small>
+      </div>
+
+      <div class="game-grid">
+        <button class="game-card" data-game="who">
+          <span class="game-icon" aria-hidden="true">🖼️</span>
+          <strong>مين ده؟</strong>
+          <small>اختار الاسم المناسب للصورة</small>
+        </button>
+
+        <button class="game-card" data-game="clue">
+          <span class="game-icon" aria-hidden="true">💬</span>
+          <strong>فاكر الحكاية؟</strong>
+          <small>اربط التلميح بالشخص المناسب</small>
+        </button>
+
+        <button class="game-card" data-game="voice">
+          <span class="game-icon" aria-hidden="true">🎙️</span>
+          <strong>مين بيتكلم؟</strong>
+          <small>اسمع التسجيل واختار الشخص المناسب</small>
+        </button>
+
+        <button class="game-card" data-game="order">
+          <span class="game-icon" aria-hidden="true">🌳</span>
+          <strong>ترتيب العيلة</strong>
+          <small>رتب أفراد العيلة من الأكبر للأصغر</small>
+        </button>
+      </div>
+
+      <div
+        id="gameArea"
+        class="game-area hidden"
+        aria-live="polite"
+        aria-atomic="false"
+      ></div>
+    </section>
+
+    <section id="research" class="page hidden" aria-labelledby="researchTitle">
+      <h2 id="researchTitle">مختبر التجارب 📊</h2>
+
+      <p>
+        سجّل الجلسات باستخدام رمز بحثي، وبعد الحصول على الموافقات
+        المناسبة من المشاركين وأولياء الأمور عند الحاجة.
+      </p>
+
+      <div class="panel">
+        <div class="form-grid">
+          <div class="field">
+            <label for="participantCode">رمز المشارك</label>
+            <input
+              id="participantCode"
+              name="participantCode"
+              placeholder="P-001"
+              maxlength="30"
+              autocomplete="off"
+            >
+            <small class="help">
+              استخدم رمزًا مستعارًا بدل الاسم الحقيقي.
+            </small>
+          </div>
+
+          <div class="field">
+            <label for="sessionTime">وقت الجلسة</label>
+            <select id="sessionTime" name="sessionTime">
+              <option value="morning">الصباح</option>
+              <option value="afternoon">بعد الظهر</option>
+              <option value="evening">المساء</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <article class="stat-card">
+          <span>الجلسات</span>
+          <strong id="sessionCount">0</strong>
+        </article>
+
+        <article class="stat-card">
+          <span>متوسط الدقة</span>
+          <strong id="averageAccuracy">—</strong>
+        </article>
+
+        <article class="stat-card">
+          <span>متوسط زمن الإجابة</span>
+          <strong id="averageTime">—</strong>
+        </article>
+      </div>
+
+      <section class="panel" aria-labelledby="chartTitle">
+        <h3 id="chartTitle">دقة الإجابات في آخر الجلسات</h3>
+
+        <p class="help">
+          كل عمود بيمثل جلسة لها دقة قابلة للحساب. الأرقام على المحور
+          الأفقي ترتيب الجلسات المعروضة، مش تواريخها.
+        </p>
+
+        <canvas
+          id="resultsChart"
+          width="700"
+          height="260"
+          role="img"
+          aria-label="رسم بياني لدقة الإجابات في الجلسات المسجلة"
+        >
+          الرسم البياني غير مدعوم في هذا المتصفح.
+        </canvas>
+      </section>
+
+      <div class="actions">
+        <button id="exportCsv" class="secondary">
+          تصدير النتائج CSV
+        </button>
+
+        <button id="exportJson" class="secondary">
+          تصدير نسخة JSON بالصور والصوت
+        </button>
+      </div>
+
+      <section class="panel">
+        <h3>سجل الجلسات</h3>
+        <div id="sessionList"></div>
+      </section>
+    </section>
+
+    <section id="settings" class="page hidden" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">الخصوصية والإعدادات 🔒</h2>
+
+      <section class="panel">
+        <h3>بياناتك تفضل على جهازك</h3>
+
+        <p>
+          التطبيق مصمم لحفظ بيانات الألبوم والجلسات محليًا،
+          ولا يرفع الصور أو التسجيلات. إعدادات التذكير تُحفظ في الخادم المحلي
+          على هذا الجهاز وتُرسل إليه فقط.
+        </p>
+
+        <p>
+          الصور والتسجيلات الصوتية محفوظة محليًا لكنها غير مشفّرة.
+          استخدم جهازًا آمنًا، وما تشاركش النسخ الاحتياطية اللي فيها صورًا
+          أو تسجيلات أو معلومات شخصية.
+        </p>
+        <p>
+          إشعارات الويب تُرسل عبر خدمة الإشعارات الخاصة بالمتصفح، لذلك قد لا تصل
+          إذا كان الجهاز مغلقًا أو غير متصل بالإنترنت.
+        </p>
+      </section>
+
+      <section class="panel" aria-labelledby="reminderSettingsTitle">
+        <h3 id="reminderSettingsTitle">التذكيرات النشطة 🔔</h3>
+        <p>
+          دي تجربة محلية على الجهاز ده. لازم تسيبي الخادم المحلي شغال عشان
+          يرسل التذكيرات؛ مزامنة أجهزة تانية تحتاج استضافة لاحقًا.
+        </p>
+
+        <div class="form-grid reminder-form">
+          <label class="reminder-toggle field full" for="reminderEnabled">
+            <span>تفعيل جدول التذكير</span>
+            <input id="reminderEnabled" type="checkbox">
+          </label>
+
+          <div class="field">
+            <label for="reminderTime">وقت التذكير</label>
+            <input id="reminderTime" type="time" value="17:00">
+          </div>
+
+          <div class="field">
+            <label for="reminderMessage">محتوى التذكير</label>
+            <select id="reminderMessage">
+              <option value="general">رسالة ترحيبية</option>
+              <option value="photos">صور العيلة</option>
+              <option value="stories">حكاية عائلية</option>
+              <option value="games">لعبة تذكّر</option>
+            </select>
+          </div>
+
+          <fieldset class="field full reminder-days">
+            <legend>أيام التذكير</legend>
+            <div class="reminder-day-list">
+              <label><input type="checkbox" value="0" checked> الأحد</label>
+              <label><input type="checkbox" value="1" checked> الإثنين</label>
+              <label><input type="checkbox" value="2" checked> الثلاثاء</label>
+              <label><input type="checkbox" value="3" checked> الأربعاء</label>
+              <label><input type="checkbox" value="4" checked> الخميس</label>
+              <label><input type="checkbox" value="5"> الجمعة</label>
+              <label><input type="checkbox" value="6"> السبت</label>
+            </div>
+          </fieldset>
+
+          <label class="reminder-toggle field full" for="reminderAdaptive">
+            <span>تقليل التكرار لو الإشعارات متتفتحش</span>
+            <input id="reminderAdaptive" type="checkbox" checked>
+          </label>
+        </div>
+
+        <div class="actions reminder-actions">
+          <button id="reminderPermissionBtn" class="secondary" type="button">
+            السماح بالإشعارات
+          </button>
+          <button id="reminderSubscribeBtn" class="secondary" type="button">
+            ربط هذا الجهاز
+          </button>
+          <button id="reminderSaveBtn" class="primary" type="button">
+            حفظ جدول التذكير
+          </button>
+          <button id="reminderTestBtn" class="secondary" type="button">
+            إرسال إشعار تجريبي
+          </button>
+          <button id="reminderStopBtn" class="danger" type="button">
+            إيقاف التذكيرات
+          </button>
+          <button id="reminderUnsubscribeBtn" class="secondary" type="button">
+            فصل هذا الجهاز
+          </button>
+        </div>
+        <p id="reminderStatus" class="help" role="status" aria-live="polite">
+          ابدأي الخادم المحلي ثم افتحي التطبيق من العنوان الذي يظهر في نافذة التشغيل.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h3>النسخ الاحتياطي</h3>
+
+        <p>
+          تقدر تصدّر نسخة من بياناتك وصور الألبوم والتسجيلات الصوتية، أو تستعيد نسخة
+          محفوظة مسبقًا. استعادة النسخة بتستبدل البيانات الحالية.
+        </p>
+
+        <div class="actions">
+          <button id="exportJsonSettings" class="secondary">
+            تصدير نسخة احتياطية
+          </button>
+
+          <button id="backupBtn" class="secondary">
+            استعادة نسخة احتياطية
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>حذف البيانات</h3>
+
+        <p>
+          حذف البيانات من داخل التطبيق لا يحذف النسخ الاحتياطية
+          اللي سبق تصديرها إلى جهازك.
+        </p>
+
+        <button id="clearDataBtn" class="danger">
+          حذف كل البيانات المحلية
+        </button>
+      </section>
+    </section>
+
+    <footer class="disclaimer">
+      <strong>تنبيه بحثي:</strong>
+      ذاكرتي نموذج أولي للتجربة وجمع بيانات وصفية عن أداء الألعاب.
+      مش أداة تشخيص أو علاج طبي، ونتائجه وحدها لا تثبت تحسن الذاكرة.
+    </footer>
+  </main>
+
+  <dialog id="personDialog" aria-labelledby="personDialogTitle">
+    <form id="personForm">
+      <div class="dialog-heading">
+        <h2 id="personDialogTitle">إضافة فرد من العيلة</h2>
+
+        <button
+          type="button"
+          class="close-button"
+          id="closePersonDialog"
+          aria-label="إغلاق النافذة"
+        >
+          ×
+        </button>
+      </div>
+
+      <p class="help">
+        استخدم صورة أو تسجيلًا صوتيًا بعد موافقة صاحبه، وأضف معلومات مناسبة يوافق عليها.
+      </p>
+
+      <div class="form-grid">
+        <div class="field full">
+          <label for="personImage">صورة الشخص</label>
+          <input
+            id="personImage"
+            type="file"
+            accept="image/*"
+            required
+          >
+          <small class="help">
+            الصورة بتتحفظ محليًا على الجهاز.
+          </small>
+        </div>
+
+        <div class="field full">
+          <label for="personAudio">صوت الشخص (اختياري)</label>
+          <input id="personAudio" type="file" accept="audio/*">
+          <div class="actions audio-recording-actions">
+            <button type="button" id="startAudioRecording" class="secondary">
+              🎙️ تسجيل صوت
+            </button>
+            <button type="button" id="stopAudioRecording" class="secondary" disabled>
+              إيقاف التسجيل
+            </button>
+            <button type="button" id="removePersonAudio" class="danger hidden">
+              حذف الصوت المحفوظ
+            </button>
+          </div>
+          <small id="personAudioStatus" class="help" role="status">
+            اختاري ملفًا صوتيًا أو سجّلي مقطعًا قصيرًا (حتى 30 ثانية).
+            التسجيل يُحفظ على هذا الجهاز فقط.
+          </small>
+        </div>
+
+        <div class="field">
+          <label for="personName">الاسم</label>
+          <input
+            id="personName"
+            required
+            maxlength="60"
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="field">
+          <label for="personRelation">صلة القرابة</label>
+          <input
+            id="personRelation"
+            required
+            maxlength="40"
+            placeholder="مثلاً: جدتي"
+          >
+        </div>
+
+        <div class="field">
+          <label for="personAge">العمر بالسنوات (اختياري)</label>
+          <input
+            id="personAge"
+            type="number"
+            min="0"
+            max="120"
+            inputmode="numeric"
+          >
+        </div>
+
+        <div class="field">
+          <label for="personBirthday">تاريخ عيد الميلاد (اختياري)</label>
+          <input id="personBirthday" type="date">
+          <small class="help">
+            اختاري أي سنة؛ نحتفظ بالتاريخ المختار ويكون التذكير سنويًا حسب اليوم والشهر.
+          </small>
+        </div>
+
+        <div class="field full">
+          <label for="personNote">التلميح الشخصي</label>
+          <textarea
+            id="personNote"
+            maxlength="240"
+            rows="3"
+            placeholder="مثلاً: بتحب تحكي لنا عن رحلات زمان"
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="primary">
+          حفظ الشخص
+        </button>
+
+        <button type="button" id="cancelPerson" class="secondary">
+          إلغاء
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
