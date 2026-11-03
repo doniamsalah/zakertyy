@@ -5,11 +5,14 @@
 
 const STORAGE_KEY = "zakerty_people_v1";
 const SESSIONS_KEY = "zakerty_sessions_v1";
+const STORIES_KEY = "zakerty_stories_v1";
 const VOICE_SETTING_KEY = "zakerty_auto_voice_v1";
+const ACCESSIBILITY_KEY = "zakerty_accessibility_v1";
 const DB_NAME = "ZakertyPhotos";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const PHOTO_STORE = "photos";
 const AUDIO_STORE = "audio";
+const STORY_AUDIO_STORE = "story-audio";
 const MAX_AUDIO_SIZE = 12 * 1024 * 1024;
 const MAX_RECORDING_MS = 30_000;
 const REMINDER_API = "/api";
@@ -19,8 +22,10 @@ const $ = (selector) => document.querySelector(selector);
 const state = {
   people: readStorage(STORAGE_KEY, []),
   sessions: readStorage(SESSIONS_KEY, []),
+  stories: readStorage(STORIES_KEY, []),
   currentGame: null,
   game: null,
+  memoryJourney: null,
   editingPersonId: null,
   autoReadQuestions: readStorage(VOICE_SETTING_KEY, false) === true,
   pendingPersonAudio: null,
@@ -28,7 +33,12 @@ const state = {
   mediaRecorder: null,
   recordingStream: null,
   recordingChunks: [],
-  recordingTimeout: null
+  recordingTimeout: null,
+  pendingStoryAudio: null,
+  storyRecorder: null,
+  storyRecordingStream: null,
+  storyRecordingChunks: [],
+  storyRecordingTimeout: null
 };
 
 function readStorage(key, fallback) {
@@ -54,6 +64,10 @@ function savePeople() {
 
 function saveSessions() {
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(state.sessions));
+}
+
+function saveStories() {
+  localStorage.setItem(STORIES_KEY, JSON.stringify(state.stories));
 }
 
 function makeId() {
@@ -88,6 +102,9 @@ function openPhotoDB() {
       }
       if (!db.objectStoreNames.contains(AUDIO_STORE)) {
         db.createObjectStore(AUDIO_STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(STORY_AUDIO_STORE)) {
+        db.createObjectStore(STORY_AUDIO_STORE, { keyPath: "id" });
       }
     };
 
@@ -185,6 +202,57 @@ async function deleteAudio(id) {
   });
 }
 
+async function saveStoryAudio(id, blob) {
+  const db = await openPhotoDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORY_AUDIO_STORE, "readwrite");
+    transaction.objectStore(STORY_AUDIO_STORE).put({ id, blob });
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function getStoryAudio(id) {
+  const db = await openPhotoDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORY_AUDIO_STORE, "readonly");
+    const request = transaction.objectStore(STORY_AUDIO_STORE).get(id);
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result?.blob || null);
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+async function deleteStoryAudio(id) {
+  const db = await openPhotoDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORY_AUDIO_STORE, "readwrite");
+    transaction.objectStore(STORY_AUDIO_STORE).delete(id);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
 async function deletePhoto(id) {
   try {
     const db = await openPhotoDB();
@@ -217,7 +285,7 @@ function revokeImageUrls(container = document) {
 
 /* Navigation */
 
-function showPage(pageId) {
+async function showPage(pageId) {
   document.querySelectorAll(".page").forEach((page) => {
     page.classList.toggle("hidden", page.id !== pageId);
   });
@@ -233,6 +301,7 @@ function showPage(pageId) {
   });
 
   if (pageId === "family") renderFamily();
+  if (pageId === "stories") await renderStories();
   if (pageId === "research") renderResearch();
 }
 
@@ -410,6 +479,9 @@ personForm?.addEventListener("submit", async (event) => {
   const relation = $("#personRelation").value.trim();
   const ageValue = $("#personAge").value;
   const note = $("#personNote").value.trim();
+  const favoriteFood = $("#personFavoriteFood").value.trim();
+  const favoriteSong = $("#personFavoriteSong").value.trim();
+  const importantPlace = $("#personImportantPlace").value.trim();
   const file = personImage.files[0];
   const audioBlob = state.pendingPersonAudio;
   const editingPerson = state.people.find(
@@ -470,6 +542,9 @@ personForm?.addEventListener("submit", async (event) => {
       relation,
       age: ageValue ? Number(ageValue) : null,
       note,
+      favoriteFood,
+      favoriteSong,
+      importantPlace,
       birthday: personBirthday.value,
       hasAudio: audioBlob
         ? true
@@ -535,6 +610,9 @@ function openPersonEditor(id) {
   $("#personRelation").value = person.relation;
   $("#personAge").value = Number.isFinite(person.age) ? person.age : "";
   $("#personNote").value = person.note || "";
+  $("#personFavoriteFood").value = person.favoriteFood || "";
+  $("#personFavoriteSong").value = person.favoriteSong || "";
+  $("#personImportantPlace").value = person.importantPlace || "";
   personBirthday.value = person.birthday
     ? birthdayInputValue(person.birthday)
     : "";
@@ -556,14 +634,15 @@ async function renderFamily() {
 
   if (!list || !empty) return;
 
-  revokeImageUrls();
+  revokeImageUrls(list);
   list.replaceChildren();
 
   const query = ($("#familySearch")?.value || "").trim().toLocaleLowerCase("ar");
   const sortBy = $("#familySort")?.value || "name";
-  const people = state.people.filter((person) =>
-    `${person.name} ${person.relation}`.toLocaleLowerCase("ar").includes(query)
-  );
+  const people = state.people.filter((person) => (
+    `${person.name} ${person.relation} ${person.favoriteFood || ""} ` +
+    `${person.favoriteSong || ""} ${person.importantPlace || ""}`
+  ).toLocaleLowerCase("ar").includes(query));
 
   people.sort((first, second) => {
     if (sortBy === "age") {
@@ -613,6 +692,15 @@ async function renderFamily() {
     const note = document.createElement("p");
     note.textContent = person.note || "لا توجد حكاية مضافة بعد.";
 
+    const interests = [
+      person.favoriteFood && `الأكلة المفضلة: ${person.favoriteFood}`,
+      person.favoriteSong && `الأغنية المفضلة: ${person.favoriteSong}`,
+      person.importantPlace && `مكان مميز: ${person.importantPlace}`
+    ].filter(Boolean);
+    const interestsText = document.createElement("p");
+    interestsText.className = "story-meta";
+    interestsText.textContent = interests.join(" · ");
+
     let audioPlayer = null;
     if (person.hasAudio) {
       try {
@@ -651,6 +739,7 @@ async function renderFamily() {
 
     actions.append(editButton, deleteButton);
     card.append(img, title, relation, details, note);
+    if (interests.length) card.append(interestsText);
     if (audioPlayer) card.append(audioPlayer);
     card.append(actions);
     list.append(card);
@@ -673,13 +762,319 @@ async function removePerson(id) {
   await deletePhoto(id);
   await deleteAudio(id);
   await renderFamily();
+  await renderStories();
   updateHome();
+}
+
+/* Family stories */
+
+const storyForm = $("#storyForm");
+const storyAudioInput = $("#storyAudio");
+const storyAudioStatus = $("#storyAudioStatus");
+const storyAudioSupported = Boolean(
+  navigator.mediaDevices?.getUserMedia && window.MediaRecorder
+);
+
+function stopStoryRecording() {
+  if (state.storyRecordingTimeout) {
+    clearTimeout(state.storyRecordingTimeout);
+    state.storyRecordingTimeout = null;
+  }
+  if (state.storyRecorder?.state === "recording") {
+    state.storyRecorder.stop();
+  }
+  state.storyRecordingStream?.getTracks().forEach((track) => track.stop());
+  state.storyRecordingStream = null;
+  $("#stopStoryRecording").disabled = true;
+  $("#startStoryRecording").disabled = !storyAudioSupported;
+}
+
+$("#startStoryRecording")?.addEventListener("click", async () => {
+  if (!storyAudioSupported) {
+    storyAudioStatus.textContent = "التسجيل غير مدعوم؛ اختاروا ملفًا صوتيًا بدلًا منه.";
+    return;
+  }
+
+  $("#startStoryRecording").disabled = true;
+  storyAudioStatus.textContent = "اسمحوا باستخدام الميكروفون لبدء التسجيل.";
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.storyRecordingStream = stream;
+    state.storyRecordingChunks = [];
+    const preferredType = "audio/webm;codecs=opus";
+    const options = typeof MediaRecorder.isTypeSupported === "function" &&
+      MediaRecorder.isTypeSupported(preferredType)
+      ? { mimeType: preferredType }
+      : undefined;
+    const recorder = new MediaRecorder(stream, options);
+    state.storyRecorder = recorder;
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size) state.storyRecordingChunks.push(event.data);
+    });
+    recorder.addEventListener("stop", () => {
+      if (state.storyRecordingTimeout) {
+        clearTimeout(state.storyRecordingTimeout);
+        state.storyRecordingTimeout = null;
+      }
+      const recording = new Blob(state.storyRecordingChunks, {
+        type: recorder.mimeType || "audio/webm"
+      });
+      state.storyRecordingChunks = [];
+      state.pendingStoryAudio = recording.size && recording.size <= MAX_AUDIO_SIZE
+        ? recording
+        : null;
+      storyAudioStatus.textContent = !recording.size
+        ? "التسجيل فارغ. حاولوا مرة أخرى."
+        : recording.size > MAX_AUDIO_SIZE
+          ? "التسجيل أكبر من 12 ميجابايت. سجّلوا مقطعًا أقصر."
+          : "تم تجهيز التسجيل. احفظوا الحكاية لتخزينه.";
+      state.storyRecordingStream?.getTracks().forEach((track) => track.stop());
+      state.storyRecordingStream = null;
+      state.storyRecorder = null;
+      $("#stopStoryRecording").disabled = true;
+      $("#startStoryRecording").disabled = false;
+    });
+    recorder.start();
+    $("#stopStoryRecording").disabled = false;
+    storyAudioStatus.textContent = "جاري تسجيل الحكاية… الحد الأقصى 30 ثانية.";
+    state.storyRecordingTimeout = setTimeout(() => {
+      if (recorder.state === "recording") recorder.stop();
+    }, MAX_RECORDING_MS);
+  } catch (error) {
+    console.error("Could not start story recording:", error);
+    state.storyRecordingStream?.getTracks().forEach((track) => track.stop());
+    state.storyRecordingStream = null;
+    $("#startStoryRecording").disabled = false;
+    storyAudioStatus.textContent =
+      "تعذر الوصول للميكروفون. راجعوا إذن المتصفح أو ارفعوا ملفًا صوتيًا.";
+  }
+});
+
+$("#stopStoryRecording")?.addEventListener("click", stopStoryRecording);
+storyAudioInput?.addEventListener("change", () => {
+  const file = storyAudioInput.files[0];
+  state.pendingStoryAudio = file || null;
+  storyAudioStatus.textContent = file
+    ? `التسجيل المختار: ${file.name}. احفظوا الحكاية لتخزينه.`
+    : "ارفعوا ملفًا صوتيًا أو سجّلوا ذكرى قصيرة حتى 30 ثانية.";
+});
+
+storyForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.people.length) {
+    alert("أضيفوا فردًا واحدًا على الأقل قبل ربط حكاية به.");
+    showPage("family");
+    return;
+  }
+
+  const audioFile = storyAudioInput.files[0];
+  const audio = audioFile || state.pendingStoryAudio;
+  if (audio && (!audio.type.startsWith("audio/") || audio.size > MAX_AUDIO_SIZE)) {
+    alert("اختاروا ملفًا صوتيًا صالحًا لا يتجاوز 12 ميجابايت.");
+    return;
+  }
+
+  const story = {
+    id: makeId(),
+    title: $("#storyTitle").value.trim(),
+    personId: $("#storyPerson").value,
+    date: $("#storyDate").value,
+    text: $("#storyText").value.trim(),
+    hasAudio: Boolean(audio),
+    createdAt: new Date().toISOString()
+  };
+  if (!story.title || !story.text || !state.people.some((person) => person.id === story.personId)) {
+    alert("اكتبوا عنوان الحكاية ونصها واختاروا فردًا من العيلة.");
+    return;
+  }
+
+  try {
+    if (audio) await saveStoryAudio(story.id, audio);
+    state.stories.unshift(story);
+    try {
+      saveStories();
+    } catch (error) {
+      state.stories = state.stories.filter((item) => item.id !== story.id);
+      if (audio) await deleteStoryAudio(story.id);
+      throw error;
+    }
+    storyForm.reset();
+    state.pendingStoryAudio = null;
+    storyAudioStatus.textContent =
+      "ارفعوا ملفًا صوتيًا أو سجّلوا ذكرى قصيرة حتى 30 ثانية. التسجيل محفوظ على هذا الجهاز.";
+    await renderStories();
+    updateHome();
+  } catch (error) {
+    console.error("Could not save family story:", error);
+    alert("تعذر حفظ الحكاية. تأكدوا من مساحة التخزين وحاولوا مرة أخرى.");
+  }
+});
+
+async function renderStories() {
+  const timeline = $("#storyTimeline");
+  const empty = $("#storiesEmpty");
+  const select = $("#storyPerson");
+  if (!timeline || !select) return;
+
+  const selectedPerson = select.value;
+  select.replaceChildren();
+  state.people.forEach((person) => {
+    const option = document.createElement("option");
+    option.value = person.id;
+    option.textContent = `${person.name} — ${person.relation}`;
+    select.append(option);
+  });
+  if (state.people.some((person) => person.id === selectedPerson)) {
+    select.value = selectedPerson;
+  }
+  select.disabled = !state.people.length;
+  const submitButton = storyForm?.querySelector('[type="submit"]');
+  if (submitButton) submitButton.disabled = !state.people.length;
+
+  revokeImageUrls(timeline);
+  timeline.replaceChildren();
+  const stories = [...state.stories].sort((first, second) =>
+    String(second.date || second.createdAt).localeCompare(
+      String(first.date || first.createdAt)
+    )
+  );
+  empty.classList.toggle("hidden", stories.length > 0);
+
+  for (const story of stories) {
+    const person = state.people.find((item) => item.id === story.personId);
+    const card = document.createElement("article");
+    card.className = "story-card";
+    card.id = `story-${story.id}`;
+
+    const title = document.createElement("h3");
+    title.textContent = story.title;
+    const metadata = document.createElement("p");
+    metadata.className = "story-meta";
+    const storyDate = story.date
+      ? new Date(`${story.date}T12:00:00`).toLocaleDateString("ar-EG", {
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        })
+      : new Date(story.createdAt).toLocaleDateString("ar-EG");
+    metadata.textContent = `${person ? `${person.name} · ${person.relation}` : "فرد غير موجود في الألبوم"} · ${storyDate}`;
+    const content = document.createElement("p");
+    content.className = "story-content";
+    content.textContent = story.text;
+    card.append(title, metadata, content);
+
+    if (person) {
+      try {
+        const url = await photoUrl(person.id);
+        if (url) {
+          const image = document.createElement("img");
+          image.className = "story-photo";
+          image.src = url;
+          image.alt = `صورة ${person.name} المرتبطة بالحكاية`;
+          image.loading = "lazy";
+          image.dataset.objectUrl = url;
+          card.insertBefore(image, content);
+        }
+      } catch (error) {
+        console.error(`Could not load story photo for ${person.name}:`, error);
+      }
+    }
+
+    if (story.hasAudio) {
+      try {
+        const recording = await getStoryAudio(story.id);
+        if (recording) {
+          const player = document.createElement("audio");
+          player.controls = true;
+          player.preload = "none";
+          player.setAttribute("aria-label", `التسجيل الصوتي للحكاية: ${story.title}`);
+          const url = URL.createObjectURL(recording);
+          player.src = url;
+          player.dataset.objectUrl = url;
+          card.append(player);
+        }
+      } catch (error) {
+        console.error(`Could not load story recording ${story.id}:`, error);
+      }
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const readButton = document.createElement("button");
+    readButton.type = "button";
+    readButton.className = "secondary";
+    readButton.textContent = "🔊 اقرأ الحكاية";
+    readButton.addEventListener("click", () => {
+      if (!speakArabic(`${story.title}. ${story.text}`)) {
+        alert("تشغيل القراءة الصوتية غير مدعوم في هذا المتصفح.");
+      }
+    });
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "danger";
+    deleteButton.textContent = "حذف الحكاية";
+    deleteButton.addEventListener("click", async () => {
+      if (!confirm(`هل تريدون حذف حكاية «${story.title}»؟`)) return;
+      const previousStories = state.stories;
+      state.stories = state.stories.filter((item) => item.id !== story.id);
+      try {
+        saveStories();
+        if (story.hasAudio) await deleteStoryAudio(story.id);
+        await renderStories();
+        updateHome();
+      } catch (error) {
+        state.stories = previousStories;
+        try {
+          saveStories();
+        } catch (rollbackError) {
+          console.error("Could not restore story metadata after delete failure:", rollbackError);
+        }
+        console.error("Could not delete family story:", error);
+        alert("تعذر حذف الحكاية من التخزين المحلي.");
+      }
+    });
+    actions.append(readButton, deleteButton);
+    card.append(actions);
+    timeline.append(card);
+  }
+}
+
+$("#weeklyChallengeButton")?.addEventListener("click", async () => {
+  const story = getWeeklyStory();
+  await showPage("stories");
+  if (story) {
+    document.getElementById(`story-${story.id}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  } else {
+    $("#storyTitle")?.focus();
+  }
+});
+
+function getWeeklyStory() {
+  if (!state.stories.length) return null;
+  const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  return [...state.stories].sort((first, second) =>
+    first.id.localeCompare(second.id)
+  )[week % state.stories.length];
+}
+
+function renderWeeklyChallenge() {
+  const prompt = $("#weeklyChallengeText");
+  const button = $("#weeklyChallengeButton");
+  if (!prompt || !button) return;
+  const story = getWeeklyStory();
+  prompt.textContent = story
+    ? `لو الوقت مناسب، افتحوا «${story.title}» واستمتعوا بذكرى العيلة سوا.`
+    : "أضيفوا حكاية عائلية، وارجعوا لها معًا وقت ما تحبوا.";
+  button.textContent = story ? "افتحوا الذكرى" : "أضيفوا أول حكاية";
 }
 
 /* Home summary */
 
 function birthdayDaysAway(birthday) {
-  if (!isValidBirthday(birthday)) return Infinity;
+  if (!birthday || !isValidBirthday(birthday)) return Infinity;
 
   const [, month, day] = birthdayParts(birthday);
   const today = new Date();
@@ -795,6 +1190,7 @@ function updateHome() {
   const sessionsCount = $("#homeSessionCount");
   if (sessionsCount) sessionsCount.textContent = state.sessions.length;
   renderUpcomingBirthdays();
+  renderWeeklyChallenge();
 }
 
 /* Local Web Push reminders */
@@ -1058,6 +1454,12 @@ function addQuestionAudio(panel, text) {
 }
 
 function beginGame(gameType) {
+  if (gameType === "memories") {
+    startMemoryJourney();
+    $("#gameArea")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
   if (state.people.length < 2) {
     alert("ضيفي صورتين على الأقل من أفراد العيلة الأول.");
     showPage("family");
@@ -1073,8 +1475,8 @@ function beginGame(gameType) {
     return;
   }
 
-  if (gameType === "clue" && !state.people.some((person) => person.note)) {
-    alert("ضيفي حكاية أو معلومة لشخص واحد على الأقل من قسم العيلة.");
+  if (gameType === "clue" && !state.people.some((person) => personClue(person))) {
+    alert("أضيفوا حكاية أو معلومة أو اهتمامًا مميزًا لشخص واحد على الأقل من قسم العيلة.");
     showPage("family");
     return;
   }
@@ -1412,7 +1814,7 @@ async function showWhoQuestion() {
 
 async function startClueGame() {
   const game = state.game;
-  game.queue = shuffle(state.people.filter((person) => person.note));
+  game.queue = shuffle(state.people.filter((person) => personClue(person)));
   game.index = 0;
   await showClueQuestion();
 }
@@ -1427,17 +1829,18 @@ async function showClueQuestion() {
   }
 
   const person = game.queue[game.index];
+  const clueText = personClue(person);
   const panel = gameShell(
     "فاكر الحكاية؟",
     "اقرأ المعلومة وحاول تعرف مين الشخص المقصود."
   );
   addQuestionAudio(
     panel,
-    `فاكر الحكاية؟ اقرأ التلميح وحاول تعرف مين الشخص المقصود. ${person.note}`
+    `فاكر الحكاية؟ اقرأ التلميح وحاول تعرف مين الشخص المقصود. ${clueText}`
   );
 
   const clue = document.createElement("blockquote");
-  clue.textContent = person.note;
+  clue.textContent = clueText;
   panel.append(clue);
 
   const options = document.createElement("div");
@@ -1508,6 +1911,172 @@ async function showClueQuestion() {
 
   panel.append(hintButton, skipButton);
   addEndButton(panel);
+}
+
+function personClue(person) {
+  return [
+    person.note,
+    person.favoriteFood && `أكلته المفضلة ${person.favoriteFood}`,
+    person.favoriteSong && `أغنيته المفضلة ${person.favoriteSong}`,
+    person.importantPlace && `مكان مميز له ${person.importantPlace}`
+  ].filter(Boolean).join(" · ");
+}
+
+/* Gentle, unscored reminiscence activity */
+
+function startMemoryJourney() {
+  const stories = state.stories
+    .filter((story) => state.people.some((person) => person.id === story.personId))
+    .sort((first, second) =>
+      String(first.date || first.createdAt).localeCompare(
+        String(second.date || second.createdAt)
+      )
+    );
+
+  if (!stories.length) {
+    alert("أضيفوا حكاية واحدة على الأقل من قسم «حكايات العيلة» لبدء جلسة الذكريات.");
+    showPage("stories");
+    return;
+  }
+
+  state.memoryJourney = { stories, index: 0 };
+  state.game = null;
+  state.currentGame = null;
+  $("#gameArea")?.classList.remove("hidden");
+  showMemoryMoment();
+}
+
+async function showMemoryMoment() {
+  const journey = state.memoryJourney;
+  if (!journey) return;
+
+  if (journey.index >= journey.stories.length) {
+    finishMemoryJourney();
+    return;
+  }
+
+  const story = journey.stories[journey.index];
+  const person = state.people.find((item) => item.id === story.personId);
+  if (!person) {
+    journey.index += 1;
+    await showMemoryMoment();
+    return;
+  }
+
+  const panel = gameShell(
+    "جلسة ذكريات هادئة 🌿",
+    "خدوا وقتكم. مفيش إجابة مطلوبة، وممكن تتفرجوا أو تسمعوا بس."
+  );
+  const image = document.createElement("img");
+  image.className = "game-photo memory-photo";
+  image.alt = `صورة ${person.name}`;
+  try {
+    const url = await photoUrl(person.id);
+    if (url) {
+      image.src = url;
+      image.dataset.objectUrl = url;
+      panel.append(image);
+    }
+  } catch (error) {
+    console.error(`Could not load memory photo for ${person.name}:`, error);
+  }
+
+  const title = document.createElement("h3");
+  title.textContent = story.title;
+  const relation = document.createElement("p");
+  relation.className = "memory-cue";
+  relation.textContent = `دي ذكرى مرتبطة بـ ${person.name}، ${person.relation}.`;
+  const invitation = document.createElement("p");
+  invitation.className = "memory-invitation";
+  invitation.textContent = "لو حابين، احكوا مع بعض عن الصورة أو الإحساس اللي بتفكّركم بيه.";
+  panel.append(title, relation, invitation);
+
+  const cues = [
+    person.note && `معلومة عنه: ${person.note}`,
+    person.favoriteFood && `كان بيحب ${person.favoriteFood}.`,
+    person.favoriteSong && `أغنية بتحبوها له: ${person.favoriteSong}.`,
+    person.importantPlace && `مكان مميز: ${person.importantPlace}.`
+  ].filter(Boolean);
+  const cue = document.createElement("p");
+  cue.className = "memory-cue hidden";
+  cue.setAttribute("aria-live", "polite");
+  cue.textContent = cues[0] || "ممكن تكتفوا بمشاهدة الصورة معًا.";
+  panel.append(cue);
+
+  const storyText = document.createElement("p");
+  storyText.className = "story-content hidden";
+  storyText.textContent = story.text;
+  panel.append(storyText);
+
+  if (story.hasAudio) {
+    try {
+      const recording = await getStoryAudio(story.id);
+      if (recording) {
+        const player = document.createElement("audio");
+        player.controls = true;
+        player.preload = "none";
+        player.setAttribute("aria-label", `تسجيل حكاية ${story.title}`);
+        const url = URL.createObjectURL(recording);
+        player.src = url;
+        player.dataset.objectUrl = url;
+        panel.append(player);
+      }
+    } catch (error) {
+      console.error(`Could not load memory story audio ${story.id}:`, error);
+    }
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "actions memory-actions";
+
+  const cueButton = document.createElement("button");
+  cueButton.className = "secondary";
+  cueButton.textContent = "معلومة تساعد على التذكّر";
+  cueButton.disabled = !cues.length;
+  cueButton.addEventListener("click", () => {
+    cue.classList.remove("hidden");
+    cueButton.disabled = true;
+  });
+
+  const showStoryButton = document.createElement("button");
+  showStoryButton.className = "secondary";
+  showStoryButton.textContent = "اقرؤوا الحكاية معًا";
+  showStoryButton.addEventListener("click", () => {
+    storyText.classList.remove("hidden");
+    if (!story.hasAudio) speakArabic(`${story.title}. ${story.text}`);
+    showStoryButton.disabled = true;
+  });
+
+  const nextButton = document.createElement("button");
+  nextButton.className = "primary";
+  nextButton.textContent = journey.index === journey.stories.length - 1
+    ? "إنهاء والعودة"
+    : "الذكرى التالية";
+  nextButton.addEventListener("click", () => {
+    journey.index += 1;
+    showMemoryMoment();
+  });
+
+  const endButton = document.createElement("button");
+  endButton.className = "secondary";
+  endButton.textContent = "إنهاء الجلسة الآن";
+  endButton.addEventListener("click", finishMemoryJourney);
+  actions.append(cueButton, showStoryButton, nextButton, endButton);
+  panel.append(actions);
+}
+
+function finishMemoryJourney() {
+  state.memoryJourney = null;
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  const panel = gameShell(
+    "شكرًا على الوقت الجميل ❤️",
+    "مفيش نتيجة أو اختبار. ممكن تحتفظوا باللحظة أو تنهوا الجلسة براحتكم."
+  );
+  const backButton = document.createElement("button");
+  backButton.className = "primary";
+  backButton.textContent = "العودة للأنشطة";
+  backButton.addEventListener("click", () => showPage("games"));
+  panel.append(backButton);
 }
 
 /* Game 3: ترتيب العيلة */
@@ -1693,7 +2262,6 @@ function finishGame(manualEnd) {
     ["مستوى الصعوبة", difficultyName(session.difficulty)],
     ["الوقت الكلي", `${Math.round(session.durationMs / 1000)} ثانية`]
   ];
-
   values.forEach(([label, value]) => {
     const card = document.createElement("div");
     card.className = "stat-card";
@@ -1781,7 +2349,8 @@ function renderResearch() {
 
         const subtitle = document.createElement("div");
         subtitle.className = "muted";
-        subtitle.textContent = `${date.toLocaleString("ar-EG")} • ${session.timeOfDay}`;
+        subtitle.textContent =
+          `${date.toLocaleString("ar-EG")} • ${session.timeOfDay}`;
 
         details.append(title, subtitle);
 
@@ -1950,6 +2519,7 @@ async function exportBackup() {
     app: "Zakerty",
     exportedAt: new Date().toISOString(),
     people: [],
+    stories: [],
     sessions: state.sessions
   };
 
@@ -1982,12 +2552,88 @@ async function exportBackup() {
     backup.people.push({ ...person, imageData, audioData });
   }
 
+  for (const story of state.stories) {
+    let audioData = null;
+    if (story.hasAudio) {
+      try {
+        const blob = await getStoryAudio(story.id);
+        if (!blob) throw new Error("Recording is missing.");
+        audioData = await blobToDataUrl(blob);
+      } catch (error) {
+        console.error("Could not export story recording:", error);
+        throw new Error(`تعذر تضمين تسجيل الحكاية «${story.title}» في النسخة الاحتياطية.`);
+      }
+    }
+    backup.stories.push({ ...story, audioData });
+  }
+
+  if (!crypto.subtle) {
+    throw new Error("التشفير غير متاح في هذا المتصفح. افتحوا التطبيق عبر الخادم المحلي.");
+  }
+  const password = await requestBackupPassword("export");
+  if (password === null) return;
+
+  const encrypted = await encryptBackup(backup, password);
   downloadFile(
-    "zakerty-backup.json",
-    JSON.stringify(backup, null, 2),
+    "zakerty-backup-encrypted.json",
+    JSON.stringify(encrypted, null, 2),
     "application/json;charset=utf-8"
   );
 }
+
+function requestBackupPassword(mode) {
+  const dialog = $("#backupPasswordDialog");
+  const form = $("#backupPasswordForm");
+  const passwordInput = $("#backupPassword");
+  const confirmationInput = $("#backupPasswordConfirm");
+  const confirmationField = $("#backupPasswordConfirmField");
+  const error = $("#backupPasswordError");
+  const title = $("#backupPasswordTitle");
+  const submit = $("#submitBackupPassword");
+  const exporting = mode === "export";
+
+  form.reset();
+  error.textContent = "";
+  title.textContent = exporting ? "تشفير النسخة الاحتياطية" : "فك تشفير النسخة";
+  confirmationField.classList.toggle("hidden", !exporting);
+  confirmationInput.required = exporting;
+  submit.textContent = exporting ? "تشفير وتنزيل" : "استعادة النسخة";
+  $("#backupPasswordHelp").textContent = exporting
+    ? "اختاروا كلمة مرور لا تقل عن 8 أحرف. لن نستطيع استعادة النسخة من دونها."
+    : "أدخلوا كلمة المرور التي استخدمتموها عند إنشاء النسخة.";
+
+  return new Promise((resolve) => {
+    const handleSubmit = (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      if (exporting && passwordInput.value !== confirmationInput.value) {
+        error.textContent = "كلمتا المرور غير متطابقتين.";
+        confirmationInput.focus();
+        return;
+      }
+      dialog.close("accepted");
+    };
+    const handleClose = () => {
+      form.removeEventListener("submit", handleSubmit);
+      const password = dialog.returnValue === "accepted" ? passwordInput.value : null;
+      form.reset();
+      resolve(password);
+    };
+
+    form.addEventListener("submit", handleSubmit);
+    dialog.addEventListener("close", handleClose, { once: true });
+    dialog.returnValue = "";
+    dialog.showModal();
+    passwordInput.focus();
+  });
+}
+
+$("#closeBackupPassword")?.addEventListener("click", () => {
+  $("#backupPasswordDialog")?.close();
+});
+$("#cancelBackupPassword")?.addEventListener("click", () => {
+  $("#backupPasswordDialog")?.close();
+});
 
 async function handleBackupExport() {
   try {
@@ -2010,14 +2656,103 @@ function blobToDataUrl(blob) {
   });
 }
 
+async function deriveBackupKey(password, salt) {
+  const material = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 250000, hash: "SHA-256" },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+async function encryptBackup(backup, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveBackupKey(password, salt);
+  const plaintext = new TextEncoder().encode(JSON.stringify(backup));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    plaintext
+  );
+  return {
+    app: "Zakerty",
+    encrypted: true,
+    algorithm: "AES-GCM",
+    kdf: "PBKDF2-SHA-256",
+    iterations: 250000,
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+  };
+}
+
+async function decryptBackup(envelope, password) {
+  if (
+    envelope.algorithm !== "AES-GCM" ||
+    envelope.kdf !== "PBKDF2-SHA-256" ||
+    envelope.iterations !== 250000 ||
+    typeof envelope.salt !== "string" ||
+    typeof envelope.iv !== "string" ||
+    typeof envelope.ciphertext !== "string"
+  ) {
+    throw new Error("صيغة النسخة الاحتياطية المشفّرة غير معروفة.");
+  }
+  try {
+    const key = await deriveBackupKey(password, base64ToBytes(envelope.salt));
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64ToBytes(envelope.iv) },
+      key,
+      base64ToBytes(envelope.ciphertext)
+    );
+    return JSON.parse(new TextDecoder().decode(plaintext));
+  } catch (error) {
+    console.error("Could not decrypt backup:", error);
+    throw new Error("تعذر فك النسخة. تأكدوا من كلمة المرور وصحة الملف.");
+  }
+}
+
 /* Restore a backup from JSON */
 
 async function restoreBackup(file) {
   const text = await file.text();
-  const backup = JSON.parse(text);
+  let backup = JSON.parse(text);
+  if (backup?.encrypted === true) {
+    if (!crypto.subtle) {
+      throw new Error("فك التشفير غير متاح. افتحوا التطبيق عبر الخادم المحلي.");
+    }
+    const password = await requestBackupPassword("restore");
+    if (password === null) return false;
+    backup = await decryptBackup(backup, password);
+  }
 
   if (!backup || !Array.isArray(backup.people) || !Array.isArray(backup.sessions)) {
     throw new Error("ملف النسخة الاحتياطية غير صالح.");
+  }
+  const backupStories = backup.stories || [];
+  if (!Array.isArray(backupStories)) {
+    throw new Error("قائمة الحكايات في النسخة الاحتياطية غير صالحة.");
   }
 
   const ids = new Set();
@@ -2055,9 +2790,33 @@ async function restoreBackup(file) {
     ids.add(person.id);
   }
 
+  const storyIds = new Set();
+  for (const story of backupStories) {
+    if (
+      !story ||
+      typeof story.id !== "string" ||
+      !story.id ||
+      storyIds.has(story.id) ||
+      typeof story.title !== "string" ||
+      !story.title.trim() ||
+      typeof story.text !== "string" ||
+      !story.text.trim() ||
+      typeof story.personId !== "string" ||
+      (story.date && !/^\d{4}-\d{2}-\d{2}$/.test(story.date)) ||
+      (story.audioData !== undefined &&
+        story.audioData !== null &&
+        (typeof story.audioData !== "string" || !story.audioData.startsWith("data:audio/")))
+    ) {
+      throw new Error("بيانات إحدى الحكايات في النسخة الاحتياطية غير صالحة.");
+    }
+    storyIds.add(story.id);
+  }
+
   const restoredPeople = [];
   const restoredPhotos = [];
   const restoredAudio = [];
+  const restoredStories = [];
+  const restoredStoryAudio = [];
   for (const person of backup.people) {
     const response = await fetch(person.imageData);
     const blob = await response.blob();
@@ -2076,11 +2835,25 @@ async function restoreBackup(file) {
     const { imageData, audioData, ...metadata } = person;
     restoredPeople.push({ ...metadata, hasAudio: Boolean(audioData) });
   }
+  for (const story of backupStories) {
+    if (story.audioData) {
+      const audioResponse = await fetch(story.audioData);
+      const audioBlob = await audioResponse.blob();
+      if (!audioBlob.type.startsWith("audio/") || audioBlob.size > MAX_AUDIO_SIZE) {
+        throw new Error(`تسجيل حكاية «${story.title}» غير صالح أو أكبر من 12 ميجابايت.`);
+      }
+      restoredStoryAudio.push({ id: story.id, blob: audioBlob });
+    }
+    const { audioData, ...metadata } = story;
+    restoredStories.push({ ...metadata, hasAudio: Boolean(audioData) });
+  }
 
   const previousPeople = state.people;
   const previousSessions = state.sessions;
+  const previousStories = state.stories;
   const previousPeopleStorage = localStorage.getItem(STORAGE_KEY);
   const previousSessionsStorage = localStorage.getItem(SESSIONS_KEY);
+  const previousStoriesStorage = localStorage.getItem(STORIES_KEY);
 
   for (const photo of restoredPhotos) {
     await savePhoto(photo.id, photo.blob);
@@ -2092,16 +2865,27 @@ async function restoreBackup(file) {
   for (const recording of restoredAudio) {
     await saveAudio(recording.id, recording.blob);
   }
+  for (const story of restoredStories) {
+    if (!restoredStoryAudio.some((recording) => recording.id === story.id)) {
+      await deleteStoryAudio(story.id);
+    }
+  }
+  for (const recording of restoredStoryAudio) {
+    await saveStoryAudio(recording.id, recording.blob);
+  }
 
   state.people = restoredPeople;
   state.sessions = backup.sessions;
+  state.stories = restoredStories;
 
   try {
     savePeople();
     saveSessions();
+    saveStories();
   } catch (error) {
     state.people = previousPeople;
     state.sessions = previousSessions;
+    state.stories = previousStories;
     try {
       if (previousPeopleStorage === null) {
         localStorage.removeItem(STORAGE_KEY);
@@ -2113,6 +2897,11 @@ async function restoreBackup(file) {
         localStorage.removeItem(SESSIONS_KEY);
       } else {
         localStorage.setItem(SESSIONS_KEY, previousSessionsStorage);
+      }
+      if (previousStoriesStorage === null) {
+        localStorage.removeItem(STORIES_KEY);
+      } else {
+        localStorage.setItem(STORIES_KEY, previousStoriesStorage);
       }
     } catch (rollbackError) {
       console.error("Could not roll back local storage after restore:", rollbackError);
@@ -2126,10 +2915,18 @@ async function restoreBackup(file) {
       .filter((person) => !restoredIds.has(person.id))
       .flatMap((person) => [deletePhoto(person.id), deleteAudio(person.id)])
   );
+  const restoredStoryIds = new Set(restoredStories.map((story) => story.id));
+  await Promise.all(
+    previousStories
+      .filter((story) => !restoredStoryIds.has(story.id))
+      .map((story) => deleteStoryAudio(story.id))
+  );
 
   await renderFamily();
+  await renderStories();
   renderResearch();
   updateHome();
+  return true;
 }
 
 /* Settings */
@@ -2148,15 +2945,54 @@ $("#backupBtn")?.addEventListener("click", () => {
     }
 
     try {
-      await restoreBackup(file);
-      alert("تمت استعادة النسخة الاحتياطية.");
+      const restored = await restoreBackup(file);
+      if (restored) alert("تمت استعادة النسخة الاحتياطية.");
     } catch (error) {
       console.error(error);
-      alert("محصلش استعادة للنسخة. اتأكدي إن الملف نسخة صحيحة من ذاكرتي.");
+      alert(error.message || "محصلش استعادة للنسخة. اتأكدي إن الملف نسخة صحيحة من ذاكرتي.");
     }
   });
 
   input.click();
+});
+
+function applyAccessibilitySettings() {
+  const settings = readStorage(ACCESSIBILITY_KEY, {}) || {};
+  const fontSize = Number(settings.fontSize);
+  const size = Number.isFinite(fontSize) ? Math.min(22, Math.max(14, fontSize)) : 16;
+  document.documentElement.style.setProperty("--base-font-size", `${size}px`);
+  document.body.classList.toggle("high-contrast", settings.highContrast === true);
+  const contrastInput = $("#highContrast");
+  if (contrastInput) contrastInput.checked = settings.highContrast === true;
+}
+
+function updateAccessibilitySettings(change) {
+  const current = readStorage(ACCESSIBILITY_KEY, {}) || {};
+  const next = { ...current, ...change };
+  try {
+    localStorage.setItem(ACCESSIBILITY_KEY, JSON.stringify(next));
+    applyAccessibilitySettings();
+  } catch (error) {
+    console.error("Could not save accessibility settings:", error);
+    alert("تعذر حفظ إعداد سهولة القراءة على هذا الجهاز.");
+  }
+}
+
+$("#fontDecrease")?.addEventListener("click", () => {
+  const settings = readStorage(ACCESSIBILITY_KEY, {}) || {};
+  const current = Number.isFinite(Number(settings.fontSize)) ? Number(settings.fontSize) : 16;
+  updateAccessibilitySettings({ fontSize: Math.max(14, current - 1) });
+});
+$("#fontIncrease")?.addEventListener("click", () => {
+  const settings = readStorage(ACCESSIBILITY_KEY, {}) || {};
+  const current = Number.isFinite(Number(settings.fontSize)) ? Number(settings.fontSize) : 16;
+  updateAccessibilitySettings({ fontSize: Math.min(22, current + 1) });
+});
+$("#fontReset")?.addEventListener("click", () => {
+  updateAccessibilitySettings({ fontSize: 16 });
+});
+$("#highContrast")?.addEventListener("change", (event) => {
+  updateAccessibilitySettings({ highContrast: event.target.checked });
 });
 
 $("#clearDataBtn")?.addEventListener("click", async () => {
@@ -2167,18 +3003,23 @@ $("#clearDataBtn")?.addEventListener("click", async () => {
   if (confirmation !== "حذف") return;
 
   const ids = state.people.map((person) => person.id);
+  const storyIds = state.stories.map((story) => story.id);
 
   state.people = [];
   state.sessions = [];
+  state.stories = [];
 
   savePeople();
   saveSessions();
+  saveStories();
 
   await Promise.all(
     ids.flatMap((id) => [deletePhoto(id), deleteAudio(id)])
   );
+  await Promise.all(storyIds.map((id) => deleteStoryAudio(id)));
 
   await renderFamily();
+  await renderStories();
   renderResearch();
   updateHome();
 
@@ -2209,6 +3050,8 @@ async function init() {
 
   updateHome();
   renderResearch();
+  applyAccessibilitySettings();
+  await renderStories();
   await renderFamily();
   await loadReminderSettings();
 }

@@ -35,8 +35,8 @@
       <h1>كل وش مألوف، وكل حكاية ليها مكان ❤️</h1>
 
       <p>
-        ألبوم عائلي شخصي، صوره ومعلوماته بيضيفها أفراد العيلة
-        بأنفسهم، مع ألعاب بسيطة وتسجيل لنتائج الجلسات.
+        مساحة عائلية للصور والحكايات، وأنشطة تذكّر هادئة يمكن مشاركتها
+        مع شخص مألوف وبالوتيرة المناسبة للمريض.
       </p>
 
       <div class="stats-grid">
@@ -53,7 +53,7 @@
 
       <div class="actions">
         <button class="primary" data-go="games">
-          ابدأ اللعب
+          ابدأ جلسة ذكريات
         </button>
 
         <button class="secondary" data-go="family">
@@ -64,6 +64,15 @@
       <section class="upcoming-panel" aria-labelledby="upcomingTitle">
         <h2 id="upcomingTitle">المناسبات العائلية القادمة 🎂</h2>
         <div id="upcomingBirthdays" class="upcoming-list"></div>
+      </section>
+
+      <section class="weekly-challenge" aria-labelledby="weeklyChallengeTitle">
+        <p class="eyebrow">لحظة هادئة كل أسبوع</p>
+        <h2 id="weeklyChallengeTitle">ذكرى الأسبوع 🌿</h2>
+        <p id="weeklyChallengeText"></p>
+        <button id="weeklyChallengeButton" class="secondary" type="button">
+          افتحوا الذكرى
+        </button>
       </section>
     </section>
 
@@ -76,8 +85,12 @@
         أفراد العيلة
       </button>
 
+      <button data-go="stories">
+        حكايات العيلة
+      </button>
+
       <button data-go="games">
-        الألعاب
+        أنشطة التذكّر
       </button>
 
       <button data-go="research">
@@ -133,14 +146,84 @@
       </p>
     </section>
 
-    <section id="games" class="page hidden" aria-labelledby="gamesTitle">
-      <h2 id="gamesTitle">اختار لعبتك 🧠</h2>
-
+    <section id="stories" class="page hidden" aria-labelledby="storiesTitle">
+      <h2 id="storiesTitle">حكايات العيلة 📖</h2>
       <p class="muted">
-        مفيش ضغط ولا استعجال. اختار اللعبة اللي تحب تبدأ بيها.
+        اجمعوا الحكايات والصور والأصوات في خط زمني عائلي. أضيفوا ذكرى بموافقة أصحابها.
       </p>
 
-      <div class="panel difficulty-panel">
+      <form id="storyForm" class="panel story-form">
+        <h3>أضيفوا حكاية جديدة</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="storyTitle">عنوان الحكاية</label>
+            <input id="storyTitle" maxlength="80" required placeholder="مثلاً: أول يوم في المدرسة">
+          </div>
+          <div class="field">
+            <label for="storyPerson">الشخص المرتبط بالحكاية</label>
+            <select id="storyPerson" required></select>
+          </div>
+          <div class="field">
+            <label for="storyDate">تاريخ أو سنة الحكاية (اختياري)</label>
+            <input id="storyDate" type="date">
+          </div>
+          <div class="field full">
+            <label for="storyText">احكوا لنا عنها</label>
+            <textarea id="storyText" rows="4" maxlength="1200" required
+              placeholder="اكتبوا الذكرى كما تحبوا أن تفتكروها..."></textarea>
+          </div>
+          <div class="field full">
+            <label for="storyAudio">تسجيل الحكاية (اختياري)</label>
+            <input id="storyAudio" type="file" accept="audio/*">
+            <div class="actions audio-recording-actions">
+              <button id="startStoryRecording" class="secondary" type="button">🎙️ سجّلوا الحكاية</button>
+              <button id="stopStoryRecording" class="secondary" type="button" disabled>إيقاف التسجيل</button>
+            </div>
+            <small id="storyAudioStatus" class="help" role="status">
+              ارفعوا ملفًا صوتيًا أو سجّلوا ذكرى قصيرة حتى 30 ثانية. التسجيل محفوظ على هذا الجهاز.
+            </small>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" type="submit">حفظ الحكاية</button>
+        </div>
+      </form>
+
+      <div id="storyTimeline" class="story-timeline" aria-live="polite"></div>
+      <p id="storiesEmpty" class="empty">
+        لسه مفيش حكايات محفوظة. ابدأوا بأول ذكرى عائلية.
+      </p>
+    </section>
+
+    <section id="games" class="page hidden" aria-labelledby="gamesTitle">
+      <h2 id="gamesTitle">أنشطة التذكّر 🧠</h2>
+
+      <p class="muted">
+        اختاروا نشاطًا مناسبًا. جلسة الذكريات هادئة، من غير توقيت أو إجابات صح وغلط،
+        وممكن تنهوها في أي وقت.
+      </p>
+
+      <div class="game-grid">
+        <button class="game-card" data-game="memories">
+          <span class="game-icon" aria-hidden="true">🌿</span>
+          <strong>جلسة ذكريات هادئة</strong>
+          <small>استرجعوا الصور والحكايات معًا، خطوة بخطوة ومن غير اختبار</small>
+        </button>
+      </div>
+
+      <p class="help">
+        يُفضّل مشاركة شخص مألوف للمريض. استمعوا له من غير تصحيح أو ضغط؛
+        لو ذكرى سببت له ضيقًا، انتقلوا لذكرى مريحة أو أنهوا الجلسة.
+        النشاط للتفاعل واستدعاء الذكريات، وليس علاجًا طبيًا أو بديلًا عن الرعاية المتخصصة.
+      </p>
+
+      <details class="panel research-games">
+        <summary>أنشطة التعرّف والبحث</summary>
+        <p class="help">
+          الأنشطة التالية تتضمن أسئلة وقياسًا وصفيًا للجلسة البحثية. اختاروها فقط
+          إذا كانت مناسبة للمشارك وبموافقته، ويمكن إيقافها في أي وقت.
+        </p>
+        <div class="panel difficulty-panel">
         <div class="field">
           <label for="gameDifficulty">مستوى صعوبة الأسئلة</label>
           <select id="gameDifficulty">
@@ -156,7 +239,7 @@
         <small id="voiceSupport" class="help" role="status">
           تقدر كمان تضغط «اسمع السؤال» وقت اللعب.
         </small>
-      </div>
+        </div>
 
       <div class="game-grid">
         <button class="game-card" data-game="who">
@@ -183,6 +266,7 @@
           <small>رتب أفراد العيلة من الأكبر للأصغر</small>
         </button>
       </div>
+      </details>
 
       <div
         id="gameArea"
@@ -269,7 +353,7 @@
         </button>
 
         <button id="exportJson" class="secondary">
-          تصدير نسخة JSON بالصور والصوت
+          تصدير نسخة مشفّرة بالصور والصوت
         </button>
       </div>
 
@@ -293,8 +377,8 @@
 
         <p>
           الصور والتسجيلات الصوتية محفوظة محليًا لكنها غير مشفّرة.
-          استخدم جهازًا آمنًا، وما تشاركش النسخ الاحتياطية اللي فيها صورًا
-          أو تسجيلات أو معلومات شخصية.
+          استخدم جهازًا آمنًا. النسخ الاحتياطية الجديدة مشفّرة بكلمة مرور،
+          لكن فقدان كلمة المرور يمنع استعادتها.
         </p>
         <p>
           إشعارات الويب تُرسل عبر خدمة الإشعارات الخاصة بالمتصفح، لذلك قد لا تصل
@@ -375,16 +459,30 @@
       </section>
 
       <section class="panel">
+        <h3>سهولة القراءة</h3>
+        <p>عدّل حجم النص أو فعّل التباين العالي لراحة أكبر.</p>
+        <div class="actions accessibility-controls">
+          <button id="fontDecrease" class="secondary" type="button" aria-label="تصغير حجم النص">A−</button>
+          <button id="fontReset" class="secondary" type="button">حجم النص الافتراضي</button>
+          <button id="fontIncrease" class="secondary" type="button" aria-label="تكبير حجم النص">A+</button>
+          <label class="reminder-toggle">
+            <span>تباين عالٍ</span>
+            <input id="highContrast" type="checkbox">
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
         <h3>النسخ الاحتياطي</h3>
 
         <p>
-          تقدر تصدّر نسخة من بياناتك وصور الألبوم والتسجيلات الصوتية، أو تستعيد نسخة
-          محفوظة مسبقًا. استعادة النسخة بتستبدل البيانات الحالية.
+          النسخة الاحتياطية تتضمن الأفراد والحكايات والصور والتسجيلات والجلسات،
+          وتُشفّر بكلمة مرور قبل تنزيلها. احتفظ بكلمة المرور في مكان آمن.
         </p>
 
         <div class="actions">
           <button id="exportJsonSettings" class="secondary">
-            تصدير نسخة احتياطية
+            تصدير نسخة احتياطية مشفّرة
           </button>
 
           <button id="backupBtn" class="secondary">
@@ -409,10 +507,35 @@
 
     <footer class="disclaimer">
       <strong>تنبيه بحثي:</strong>
-      ذاكرتي نموذج أولي للتجربة وجمع بيانات وصفية عن أداء الألعاب.
-      مش أداة تشخيص أو علاج طبي، ونتائجه وحدها لا تثبت تحسن الذاكرة.
+      ذاكرتي نموذج أولي لأنشطة التذكّر والتفاعل وجمع بيانات وصفية عن بعض الألعاب.
+      مش علاجًا للزهايمر أو أداة تشخيص، ولا تغني عن الرعاية الطبية المتخصصة.
     </footer>
   </main>
+
+  <dialog id="backupPasswordDialog" aria-labelledby="backupPasswordTitle">
+    <form id="backupPasswordForm">
+      <div class="dialog-heading">
+        <h2 id="backupPasswordTitle">تشفير النسخة الاحتياطية</h2>
+        <button id="closeBackupPassword" class="close-button" type="button" aria-label="إغلاق النافذة">×</button>
+      </div>
+      <p id="backupPasswordHelp" class="help">
+        اختاروا كلمة مرور لا تقل عن 8 أحرف. لن نستطيع استعادة النسخة من دونها.
+      </p>
+      <div class="field">
+        <label for="backupPassword">كلمة المرور</label>
+        <input id="backupPassword" type="password" minlength="8" autocomplete="new-password" required>
+      </div>
+      <div id="backupPasswordConfirmField" class="field">
+        <label for="backupPasswordConfirm">تأكيد كلمة المرور</label>
+        <input id="backupPasswordConfirm" type="password" minlength="8" autocomplete="new-password" required>
+      </div>
+      <p id="backupPasswordError" class="feedback bad" role="status" aria-live="polite"></p>
+      <div class="actions">
+        <button id="submitBackupPassword" class="primary" type="submit">تشفير وتنزيل</button>
+        <button id="cancelBackupPassword" class="secondary" type="button">إلغاء</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="personDialog" aria-labelledby="personDialogTitle">
     <form id="personForm">
@@ -514,6 +637,19 @@
             rows="3"
             placeholder="مثلاً: بتحب تحكي لنا عن رحلات زمان"
           ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="personFavoriteFood">أكلة مفضلة (اختياري)</label>
+          <input id="personFavoriteFood" maxlength="80">
+        </div>
+        <div class="field">
+          <label for="personFavoriteSong">أغنية مفضلة (اختياري)</label>
+          <input id="personFavoriteSong" maxlength="80">
+        </div>
+        <div class="field full">
+          <label for="personImportantPlace">مكان مميز (اختياري)</label>
+          <input id="personImportantPlace" maxlength="100">
         </div>
       </div>
 

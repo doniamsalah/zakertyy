@@ -11,7 +11,20 @@
   --success: #42765c;
   --danger: #a43f3f;
   --radius: 20px;
+  --base-font-size: 16px;
   font-family: Tahoma, Arial, sans-serif;
+  font-size: var(--base-font-size);
+}
+
+body.high-contrast {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --text: #111111;
+  --muted: #3d3d3d;
+  --primary: #123f35;
+  --primary-dark: #082c25;
+  --accent: #e4eee9;
+  --border: #555555;
 }
 
 * {
@@ -147,6 +160,18 @@ select:focus-visible {
   font-size: .9rem;
 }
 
+.weekly-challenge {
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid #d5c1af;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fffaf5, #f1e4d8);
+}
+
+.weekly-challenge p:last-of-type {
+  margin-bottom: 12px;
+}
+
 .eyebrow {
   color: var(--primary);
   font-size: .85rem;
@@ -270,6 +295,40 @@ h3 {
   margin: 20px 0;
 }
 
+.research-games {
+  margin: 22px 0;
+}
+
+.research-games > summary {
+  color: var(--primary-dark);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.research-games[open] > summary {
+  margin-bottom: 16px;
+}
+
+.memory-photo {
+  height: min(42vh, 360px);
+}
+
+.memory-cue {
+  padding: 14px;
+  border-radius: 14px;
+  background: #fffaf5;
+  color: var(--primary-dark);
+}
+
+.memory-invitation {
+  font-size: 1.15em;
+  font-weight: 700;
+}
+
+.memory-actions button {
+  min-height: 48px;
+}
+
 .voice-toggle {
   display: flex;
   align-items: center;
@@ -366,6 +425,63 @@ h3 {
   border: 1px dashed #d6c5b6;
   border-radius: var(--radius);
   color: var(--muted);
+}
+
+.story-form {
+  margin: 22px 0;
+}
+
+.story-timeline {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.story-card {
+  position: relative;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-inline-start: 5px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.story-card h3 {
+  margin-bottom: 4px;
+}
+
+.story-meta {
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.story-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.story-photo {
+  display: block;
+  width: min(100%, 360px);
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 14px;
+  margin: 12px 0;
+}
+
+.story-card audio {
+  display: block;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.accessibility-controls {
+  align-items: center;
+}
+
+.accessibility-controls .reminder-toggle {
+  flex: 1 1 200px;
+  margin: 0;
 }
 
 .game-area {
@@ -671,5 +787,12 @@ dialog::backdrop {
     animation-duration: .01ms !important;
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  body.high-contrast button:focus-visible,
+  body.high-contrast input:focus-visible,
+  body.high-contrast textarea:focus-visible,
+  body.high-contrast select:focus-visible {
+    outline-color: #000000;
   }
 }
