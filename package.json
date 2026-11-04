@@ -1,0 +1,15 @@
+{
+  "name": "zakerty-local-reminders",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Web Push reminder server for Zakerty",
+  "scripts": {
+    "start": "node local-server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

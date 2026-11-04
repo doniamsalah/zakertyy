@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: zakerty
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: zakerty-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: ZAKERTY_DATA_DIR
+        value: /var/data
