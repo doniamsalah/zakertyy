@@ -1,8 +1,8 @@
 
-const CACHE_NAME = "zakerty-v9";
+const CACHE_NAME = "zakerty-v10";
 const APP_FILES = [
   "./",
-  "./index.html",
+  "./index1.html",
   "./styles.css",
   "./app.js"
 ];

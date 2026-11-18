@@ -454,9 +454,9 @@ async function handleApi(request, response, url) {
 }
 
 function serveStatic(response, pathname) {
-  const requestedPath = pathname === "/" ? "/index.html" : pathname;
+  const requestedPath = pathname === "/" ? "/index1.html" : pathname;
   const allowedFiles = new Set([
-    "/index.html",
+    "/index1.html",
     "/app.js",
     "/styles.css",
     "/sw.js"
